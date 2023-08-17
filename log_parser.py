@@ -1,5 +1,6 @@
 import csv
 import os
+import time 
 
 filename = 'access_log.20220801'
 
@@ -10,7 +11,7 @@ def reader(filename):
     return log
         
 def save_to_csv(lst,filename):
-    keys = ['IP','Remote Log Name','User Identifier','Datetime','Request','Requested URL','Status Code','Size','Referrer','User Agent']
+    keys = ['IP','Remote Log Name','User Identifier','Datetime','Request','Requested URL','Status Code','Size','Referrer','User Agent','Unknown Client ID']
     try:
         with open(f'{filename}.csv','a',encoding='utf-8') as f:
             dict_writer = csv.DictWriter(f,keys,lineterminator='\n')
@@ -25,6 +26,14 @@ def parse(log,filename):
         if line:
             try:
                 line = line.split(' ')
+                if 'unknown' in line[0]:
+                    unknown = True
+                    line = line[1:]
+                else:
+                    unknown = False
+                while line[0][-1] == ',':
+                    line[1] = line[0]+line[1]
+                    line = line[1:]
                 ip = line[0]
                 identd = line[1]
                 rehg = line[2]
@@ -46,7 +55,8 @@ def parse(log,filename):
                     'Status Code':status,
                     'Size':size,
                     'Referrer':referrer,
-                    'User Agent':user_agent
+                    'User Agent':user_agent,
+                    'Unknown Client ID':unknown
                 })
             except Exception as e:
                 print(line)
@@ -54,15 +64,14 @@ def parse(log,filename):
     save_to_csv(lst,filename)
 
 def init_dir(filename):
-    keys = ['IP','Remote Log Name','User Identifier','Datetime','Request','Requested URL','Status Code','Size','Referrer','User Agent']
+    keys = ['IP','Remote Log Name','User Identifier','Datetime','Request','Requested URL','Status Code','Size','Referrer','User Agent','Unknown Client ID']
     with open(f'{filename}.csv','w',encoding='utf-8') as f:
         dict_writer = csv.DictWriter(f,keys)
-        dict_writer.writeheader() 
+        dict_writer.writeheader()
 
 if __name__ == '__main__':
     for f in os.listdir(os.getcwd()):
         if str(f).startswith('access_log'):
-            print(f)
             log = reader(f)
             init_dir(f)
             parse(log,f)
