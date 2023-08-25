@@ -7,6 +7,9 @@ from ipaddress import ip_address
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import cpu_count
+import pandas as pd
+import magic
+import requests
 
 
 # filename = 'access_log.20220801'
@@ -77,7 +80,43 @@ def process_log_file(f):
     init_dir(f)
     parse(log,f)
 
+def make_tags(url,user_agent):
+    cats = {
+        'inews':'news',
+        'jobse':'jobs',
+        'mtrial':'material',
+        'photo':'photos',
+        'sns':'social media',
+        'help':'help'
+    }
+    bots = ['http:','https:','bot','spider','crawl','yeti','lwp-trivial','cortex','mediapartners-google','the knowledge ai','']
+    devices = ['iphone','android','windows','macintosh','']
+    tags = set()
+    for key,cat in cats.items():
+        if key in str(url).lower():
+            tags.add(cat)
+            break
+    for bot in bots:
+        if bot in str(user_agent).lower():
+            tags.add('bot/crawler')
+            break
+    for device in devices:
+    magic_obj = magic.Magic()
+    with requests.get(url, stream=True) as response:
+        content_type = magic_obj.from_buffer(response.content)
+    if content_type:
+        tags.add(content_type)
+    
+
+    return
+
 if __name__ == '__main__':
+    combined = pd.read_csv('combined.csv')
     with ProcessPoolExecutor(max_workers=cpu_count()-3) as executor:
-        log_files = [f for f in os.listdir() if str(f).startswith('access_log')]
-        executor.map(process_log_file, log_files)
+        # log_files = [f for f in os.listdir() if str(f).startswith('access_log')]
+        # executor.map(process_log_file, log_files)
+        urls = combined['URL']
+        user_agents = combined['User Agent']
+        tags = [tag for tag in executor.map(make_tags,zip(urls,user_agents))]
+    combined['Tags'] = tags
+    combined.to_csv('taggeed_combined.csv',encoding='utf-8-sig')
