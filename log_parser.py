@@ -13,7 +13,7 @@ def reader(filename):
     return log
         
 def save_to_csv(lst,filename):
-    keys = ['IP','Remote Log Name','User Identifier','Timestamp','Method','Path','URL','Category','Version','Content Type','Status','Bytes','Referer','Referer Category','Referer Content Type','User Agent','Device','Identified Hostname','Direct Access']
+    keys = ['IP','Timestamp','Method','Path','URL','Category','Content Type','Status','Bytes','Referer','Referer Category','Referer Content Type','User Agent','Device']
     try:
         with open(f'{filename}.csv','a',encoding='utf-8-sig') as f:
             dict_writer = csv.DictWriter(f,keys,lineterminator='\n')
@@ -33,6 +33,12 @@ def get_cat(url):
             'sns':'social media',
             'help':'help',
             'search':'search',
+            'mbweb/news':'mobile news',
+            'mbweb/magazine':'mobile magzine',
+            'mbweb/job':'mobile jobs',
+            'mbweb/mtrial':'mobile material',
+            'mbweb/photo':'mobile photos',
+            'mbweb/sns':'mobile social media',
         }
         for key,cat in cats.items():
                 if str(url).lower().startswith(f'https://www.lafent.com/{key}') or str(url).lower().startswith(f'http://www.lafent.com/{key}'):
@@ -69,6 +75,8 @@ def get_content_type(url):
 def get_device(user_agent):
     devices = ['iphone','android','windows','macintosh']
     bots = ['http:','https:','bot','spider','crawl','yeti','lwp-trivial','cortex','mediapartners-google','the knowledge ai']
+    if 'facebookexternalhit' in str(user_agent).lower():
+        return 'facebook'
     for bot in bots:
         if bot in str(user_agent).lower():
             return 'bot'
@@ -86,13 +94,11 @@ def parse(log,filename):
     lst = []
     for line in log:
         if line:
-            pattern = r'^(?P<ips>(?:(?:\S+)(?:,\s*\S+)*)) (?P<identd>\S+) (?P<user>\S+) \[(?P<timestamp>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+)(?: (?P<version>\S+))?" (?P<status>\d+) (?P<bytes>\d+) "(?P<referer>.*?)" "(?P<user_agent>.*?)"'
+            pattern = r'^(?P<ips>(?:(?:\S+)(?:,\s*\S+)*)) (\S+) (\S+) \[(?P<timestamp>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+)(?: (\S+))?" (?P<status>\d+) (?P<bytes>\d+) "(?P<referer>.*?)" "(?P<user_agent>.*?)"'
             match = re.match(pattern,line)
             if match:
-                found_host = True
                 ips = [ip.strip() for ip in match.group("ips").split(",")]
                 if ips[0] == 'unknown':
-                    found_host = False
                     ips = ips[1:]
                 if len(ips) > 1:
                     device = 'bot'
@@ -100,23 +106,18 @@ def parse(log,filename):
                     device = None
                     ips = ips[0]
                 ips = check_empty(ips)
-                identd = check_empty(match.group("identd"))
-                user = check_empty(match.group("user"))
                 timestamp = datetime.strptime(match.group("timestamp"),'%d/%b/%Y:%H:%M:%S %z')
                 method = match.group("method")
                 path = match.group("path")
                 url = f'https://www.lafent.com{path}'
                 cat = get_cat(url)
                 content_type = get_content_type(url)
-                version = match.group("version")
                 status = match.group("status")
                 bytes = match.group("bytes")
                 referer = check_empty(match.group("referer"))
-                dir_acc = True
                 ref_cat = None
                 ref_content_type = None
                 if referer:
-                    dir_acc = False
                     ref_cat = get_cat(referer)
                     ref_content_type = get_content_type(referer)
                 user_agent = check_empty(match.group("user_agent"))
@@ -124,14 +125,11 @@ def parse(log,filename):
                     device = get_device(user_agent)
                 lst.append({
                     'IP':ips,
-                    'Remote Log Name':identd,
-                    'User Identifier':user,
                     'Timestamp':timestamp,
                     'Method':method,
                     "Path":path,
                     "URL":url,
                     "Category":cat,
-                    "Version":version,
                     "Content Type":content_type,
                     "Status":status,
                     "Bytes":bytes,
@@ -139,9 +137,7 @@ def parse(log,filename):
                     "Referer Category":ref_cat,
                     "Referer Content Type":ref_content_type,
                     "User Agent":user_agent,
-                    "Device":device,
-                    "Identified Hostname":found_host,
-                    "Direct Access":dir_acc
+                    "Device":device
                 })
             else:
                 with open('invalid_paths.txt','a',encoding='utf-8-sig') as sys.stdout:
@@ -149,7 +145,7 @@ def parse(log,filename):
     save_to_csv(lst,filename)
 
 def init_dir(filename):
-    keys = ['IP','Remote Log Name','User Identifier','Timestamp','Method','Path','URL','Category','Version','Content Type','Status','Bytes','Referer','Referer Category','Referer Content Type','User Agent','Device','Identified Hostname','Direct Access']
+    keys = ['IP','Timestamp','Method','Path','URL','Category','Content Type','Status','Bytes','Referer','Referer Category','Referer Content Type','User Agent','Device']
     with open(f'{filename}.csv','w',encoding='utf-8-sig') as f:
         dict_writer = csv.DictWriter(f,keys)
         dict_writer.writeheader()
@@ -163,6 +159,6 @@ def process_log_file(f):
         print(e)
 
 if __name__ == '__main__':
-    with ProcessPoolExecutor(max_workers=cpu_count()-2) as executor:
+    with ProcessPoolExecutor(max_workers=cpu_count()-3) as executor:
         log_files = [f for f in os.listdir() if str(f).startswith('access_log')]
         executor.map(process_log_file, log_files)
